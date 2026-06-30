@@ -1,0 +1,24 @@
+use super::EntityDef;
+
+pub const AUTHORITIES: &[EntityDef] = &[
+    EntityDef { name: "Commissioner Vex", flavor: "Head of the Underground Affairs Bureau.", base_cost: 1.0, base_power: 0.10, messages: &["The Bureau has opened file 7741. Your parents.", "Official channels move slow. But they move."] },
+    EntityDef { name: "Agent Chrome", flavor: "Field operative with a perfect search record.", base_cost: 2.0, base_power: 0.16, messages: &["Deploying to Sector 7. Stand by.", "I've found worse. I'll find them."] },
+    EntityDef { name: "Inspector Null", flavor: "Investigates disappearances the corps deny.", base_cost: 3.0, base_power: 0.25, messages: &["Null case status: active. Very active.", "Denial is admission in my book."] },
+    EntityDef { name: "Director Flux", flavor: "Directs the Flux Division of missing persons.", base_cost: 5.0, base_power: 0.38, messages: &["Flux Division allocates resources to your case.", "Priority elevated. Prestige has its privileges."] },
+    EntityDef { name: "Marshal Wire", flavor: "Marshals the wire-tap division across districts.", base_cost: 8.0, base_power: 0.55, messages: &["Wire division intercepted a transmission.", "Every wire leads somewhere."] },
+    EntityDef { name: "Chief Override", flavor: "Can override any corp security protocol.", base_cost: 12.0, base_power: 0.80, messages: &["Security overridden at the detention facility.", "Authority exists to be used for justice."] },
+    EntityDef { name: "Judge Neon", flavor: "Issues warrants the corps cannot ignore.", base_cost: 18.0, base_power: 1.1, messages: &["Warrant issued. Raid authorized at dawn.", "The law still works. Sometimes."] },
+    EntityDef { name: "Captain Deep", flavor: "Commands the deep-city reconnaissance unit.", base_cost: 27.0, base_power: 1.5, messages: &["Deep recon found habitation signs below.", "Below the city, truth waits."] },
+    EntityDef { name: "Warden Cipher", flavor: "Warden of the evidence vault beneath City Hall.", base_cost: 40.0, base_power: 2.0, messages: &["Vault 3 contains a DNA match. Processing.", "Evidence doesn't expire. Neither will we."] },
+    EntityDef { name: "General Pulse", flavor: "Commands the emergency response grid.", base_cost: 60.0, base_power: 2.6, messages: &["Emergency grid scanning all frequencies.", "Pulse of the city reveals hidden life."] },
+    EntityDef { name: "Admiral Static", flavor: "Controls the broadcast monitoring fleet.", base_cost: 90.0, base_power: 3.4, messages: &["Fleet detected anomalous broadcast from quarantine.", "Static is the voice of the suppressed."] },
+    EntityDef { name: "Commander Ghost", flavor: "Leads ghost operations in hostile corp territory.", base_cost: 130.0, base_power: 4.4, messages: &["Ghost op infiltrated the black site.", "Invisible forces work for you now."] },
+    EntityDef { name: "Prefect Dark", flavor: "Prefect of the dark fiber investigation unit.", base_cost: 190.0, base_power: 5.6, messages: &["Dark fiber analysis: 94% match to your parents.", "What corps hide in dark, we seize."] },
+    EntityDef { name: "Sovereign Bit", flavor: "Holds sovereign authority over data jurisdictions.", base_cost: 280.0, base_power: 7.2, messages: &["Sovereign decree: all data on your case released.", "Data sovereignty serves the searching."] },
+    EntityDef { name: "Regent Silicon", flavor: "Regent of the silicon forensics division.", base_cost: 400.0, base_power: 9.2, messages: &["Silicon forensics recovered deleted messages.", "Deleted is not destroyed. Remember that."] },
+    EntityDef { name: "High Inquisitor", flavor: "Interrogates corp executives under truth serum.", base_cost: 580.0, base_power: 12.0, messages: &["Executive confessed to the relocation program.", "Truth serum works on liars with badges."] },
+    EntityDef { name: "Lord Override", flavor: "Lord of the override council — final authority.", base_cost: 850.0, base_power: 15.0, messages: &["Council voted unanimous: full search deployment.", "When we override, mountains move."] },
+    EntityDef { name: "Supreme Auditor", flavor: "Audits every corp ledger for hidden prisoners.", base_cost: 1200.0, base_power: 19.0, messages: &["Ledger audit found billing for two detainees.", "Money trails lead to people."] },
+    EntityDef { name: "Archon Eclipse", flavor: "Archon who witnessed the eclipse event firsthand.", base_cost: 1750.0, base_power: 24.0, messages: &["I testify: your parents were alive after the eclipse.", "My testimony is absolute."] },
+    EntityDef { name: "The Final Authority", flavor: "The ultimate power in the neon diaspora.", base_cost: 2500.0, base_power: 30.0, messages: &["All resources of the city are yours now.", "We will find them. That is not hope. That is order."] },
+];

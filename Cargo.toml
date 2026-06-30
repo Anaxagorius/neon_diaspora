@@ -1,0 +1,12 @@
+[package]
+name = "neon-diaspora"
+version = "0.1.0"
+edition = "2021"
+description = "A punishing cyberpunk idle/clicker — search the neon city for missing parents"
+
+[dependencies]
+eframe = "0.31"
+egui = "0.31"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"

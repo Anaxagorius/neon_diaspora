@@ -140,7 +140,7 @@ impl GameState {
     }
 
     pub fn save_path_for_slot(slot: usize) -> PathBuf {
-        let slot = slot % SAVE_SLOTS;
+        assert!(slot < SAVE_SLOTS, "invalid save slot index: {slot}");
         dirs_fallback().join(format!(
             "{}_slot_{}.json",
             SAVE_FILE.trim_end_matches(".json"),
@@ -267,13 +267,14 @@ impl GameState {
         quantity: Option<u32>,
         mut cost_fn: impl FnMut(u32) -> f64,
     ) -> (u32, f64) {
+        const PURCHASE_TOLERANCE: f64 = 1e-9;
         let limit = quantity.unwrap_or(u32::MAX);
         let mut purchased = 0;
         let mut total_cost = 0.0;
 
         while purchased < limit {
             let cost = cost_fn(owned + purchased);
-            if total_cost + cost > currency + f64::EPSILON {
+            if total_cost + cost > currency + PURCHASE_TOLERANCE {
                 break;
             }
             total_cost += cost;

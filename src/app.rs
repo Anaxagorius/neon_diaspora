@@ -351,7 +351,7 @@ impl NeonDiasporaApp {
             neon_text::neon_heading(ui, "HOME TERMINAL", theme::NEON_CYAN, 24.0);
             neon_text::neon_body(
                 ui,
-                "Choose one of three save slots, then continue an existing run or start over with a new play through.",
+                "Choose one of three save slots, then continue an existing run or start over with a new playthrough.",
                 theme::TEXT_DIM,
                 14.0,
             );

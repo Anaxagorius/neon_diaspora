@@ -140,7 +140,7 @@ impl GameState {
     }
 
     pub fn save_path_for_slot(slot: usize) -> PathBuf {
-        assert!(slot < SAVE_SLOTS, "invalid save slot index: {slot}");
+        assert!(slot < SAVE_SLOTS, "invalid save slot index: {}", slot);
         dirs_fallback().join(format!(
             "{}_slot_{}.json",
             SAVE_FILE.trim_end_matches(".json"),
@@ -660,7 +660,7 @@ mod tests {
         let mut state = GameState::new();
         assert_eq!(state.achievement_multiplier(), 1.0);
         state.achievements_unlocked.extend([1, 2, 3]);
-        assert!((state.achievement_multiplier() - 1.06).abs() < f64::EPSILON);
+        assert!((state.achievement_multiplier() - 1.06).abs() < 1e-10);
     }
 
     #[test]

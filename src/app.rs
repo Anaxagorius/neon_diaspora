@@ -3,10 +3,10 @@ use eframe::egui::{self, Color32, Rect, RichText, Stroke, Vec2};
 use crate::avatars;
 use crate::data::{authorities, buddies, mentors};
 use crate::game::achievements;
-use crate::game::milestones;
 use crate::game::clicker::{self, CLICK_UPGRADES};
 use crate::game::crafting::RECIPES;
-use crate::game::state::{GameState, MsgKind};
+use crate::game::milestones;
+use crate::game::state::{GameState, MsgKind, ACHIEVEMENT_BONUS_PER_UNLOCK, SAVE_SLOTS};
 use crate::game::storyline;
 use crate::neon_text::{self, draw_neon_text};
 use crate::theme;
@@ -24,20 +24,71 @@ enum Tab {
     Rebirth,
 }
 
+#[derive(PartialEq, Clone, Copy)]
+enum PurchaseAmount {
+    One,
+    Ten,
+    TwentyFive,
+    Fifty,
+    Hundred,
+    Max,
+}
+
+impl PurchaseAmount {
+    fn label(self) -> &'static str {
+        match self {
+            Self::One => "1",
+            Self::Ten => "10",
+            Self::TwentyFive => "25",
+            Self::Fifty => "50",
+            Self::Hundred => "100",
+            Self::Max => "MAX",
+        }
+    }
+
+    fn quantity(self) -> Option<u32> {
+        match self {
+            Self::One => Some(1),
+            Self::Ten => Some(10),
+            Self::TwentyFive => Some(25),
+            Self::Fifty => Some(50),
+            Self::Hundred => Some(100),
+            Self::Max => None,
+        }
+    }
+}
+
+const PURCHASE_AMOUNTS: [PurchaseAmount; 6] = [
+    PurchaseAmount::One,
+    PurchaseAmount::Ten,
+    PurchaseAmount::TwentyFive,
+    PurchaseAmount::Fifty,
+    PurchaseAmount::Hundred,
+    PurchaseAmount::Max,
+];
+
 pub struct NeonDiasporaApp {
     state: GameState,
     tab: Tab,
     auto_save_timer: f64,
     buddy_sprites: avatars::BuddySprites,
+    active_slot: Option<usize>,
+    home_screen: bool,
+    slot_previews: Vec<Option<GameState>>,
+    purchase_amount: PurchaseAmount,
 }
 
 impl NeonDiasporaApp {
     pub fn new() -> Self {
         Self {
-            state: GameState::load(),
+            state: GameState::new(),
             tab: Tab::Search,
             auto_save_timer: 0.0,
             buddy_sprites: avatars::BuddySprites::new(),
+            active_slot: None,
+            home_screen: true,
+            slot_previews: Self::load_slot_previews(),
+            purchase_amount: PurchaseAmount::One,
         }
     }
 
@@ -66,6 +117,38 @@ impl NeonDiasporaApp {
         );
         ctx.set_style(style);
     }
+
+    fn load_slot_previews() -> Vec<Option<GameState>> {
+        (0..SAVE_SLOTS).map(GameState::load_slot_preview).collect()
+    }
+
+    fn save_active_slot(&self) {
+        if let Some(slot) = self.active_slot {
+            self.state.save_to_slot(slot);
+        }
+    }
+
+    fn enter_slot(&mut self, slot: usize, start_over: bool) {
+        self.state = if start_over {
+            GameState::new()
+        } else {
+            GameState::load_slot(slot)
+        };
+        self.active_slot = Some(slot);
+        self.home_screen = false;
+        self.auto_save_timer = 0.0;
+        self.tab = Tab::Search;
+        self.save_active_slot();
+        self.slot_previews = Self::load_slot_previews();
+    }
+
+    fn return_home(&mut self) {
+        self.save_active_slot();
+        self.slot_previews = Self::load_slot_previews();
+        self.active_slot = None;
+        self.home_screen = true;
+        self.auto_save_timer = 0.0;
+    }
 }
 
 impl eframe::App for NeonDiasporaApp {
@@ -73,12 +156,14 @@ impl eframe::App for NeonDiasporaApp {
         Self::setup_theme(ctx);
         self.buddy_sprites.ensure_loaded(ctx);
 
-        let dt = ctx.input(|i| i.unstable_dt) as f64;
-        self.state.tick(dt);
-        self.auto_save_timer += dt;
-        if self.auto_save_timer > 30.0 {
-            self.state.save();
-            self.auto_save_timer = 0.0;
+        if !self.home_screen {
+            let dt = ctx.input(|i| i.unstable_dt) as f64;
+            self.state.tick(dt);
+            self.auto_save_timer += dt;
+            if self.auto_save_timer > 30.0 {
+                self.save_active_slot();
+                self.auto_save_timer = 0.0;
+            }
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(16));
 
@@ -86,54 +171,60 @@ impl eframe::App for NeonDiasporaApp {
             self.render_header(ui);
         });
 
-        if let Some(ach_id) = self.state.achievement_notification {
-            egui::TopBottomPanel::bottom("ach_notify")
-                .min_height(64.0)
+        if !self.home_screen {
+            if let Some(ach_id) = self.state.achievement_notification {
+                egui::TopBottomPanel::bottom("ach_notify")
+                    .min_height(64.0)
+                    .show(ctx, |ui| {
+                        if let Some(ach) = achievements::achievement_by_id(ach_id) {
+                            self.render_achievement_notification(ui, ach);
+                        }
+                    });
+            } else if let Some(beat_id) = self.state.story_notification {
+                egui::TopBottomPanel::bottom("story_notify")
+                    .min_height(80.0)
+                    .show(ctx, |ui| {
+                        if let Some(beat) = storyline::beat_by_id(beat_id) {
+                            self.render_story_notification(ui, beat);
+                        }
+                    });
+            } else if let Some(msg) = self.state.current_message.clone() {
+                egui::TopBottomPanel::bottom("encouragement")
+                    .min_height(52.0)
+                    .show(ctx, |ui| {
+                        self.render_encouragement(ui, &msg);
+                    });
+            }
+
+            egui::SidePanel::left("sidebar")
+                .resizable(false)
+                .default_width(160.0)
                 .show(ctx, |ui| {
-                    if let Some(ach) = achievements::achievement_by_id(ach_id) {
-                        self.render_achievement_notification(ui, ach);
-                    }
-                });
-        } else if let Some(beat_id) = self.state.story_notification {
-            egui::TopBottomPanel::bottom("story_notify")
-                .min_height(80.0)
-                .show(ctx, |ui| {
-                    if let Some(beat) = storyline::beat_by_id(beat_id) {
-                        self.render_story_notification(ui, beat);
-                    }
-                });
-        } else if let Some(msg) = self.state.current_message.clone() {
-            egui::TopBottomPanel::bottom("encouragement")
-                .min_height(52.0)
-                .show(ctx, |ui| {
-                    self.render_encouragement(ui, &msg);
+                    self.render_sidebar(ui);
                 });
         }
 
-        egui::SidePanel::left("sidebar")
-            .resizable(false)
-            .default_width(160.0)
-            .show(ctx, |ui| {
-                self.render_sidebar(ui);
-            });
-
         egui::CentralPanel::default().show(ctx, |ui| {
-            match self.tab {
-                Tab::Search => self.render_search(ui),
-                Tab::Journey => self.render_journey(ui),
-                Tab::Achievements => self.render_achievements(ui),
-                Tab::Buddies => self.render_entity_shop(ui, ShopKind::Buddy),
-                Tab::Mentors => self.render_entity_shop(ui, ShopKind::Mentor),
-                Tab::Authorities => self.render_entity_shop(ui, ShopKind::Authority),
-                Tab::Upgrades => self.render_upgrades(ui),
-                Tab::Crafting => self.render_crafting(ui),
-                Tab::Rebirth => self.render_rebirth(ui),
+            if self.home_screen {
+                self.render_home(ui);
+            } else {
+                match self.tab {
+                    Tab::Search => self.render_search(ui),
+                    Tab::Journey => self.render_journey(ui),
+                    Tab::Achievements => self.render_achievements(ui),
+                    Tab::Buddies => self.render_entity_shop(ui, ShopKind::Buddy),
+                    Tab::Mentors => self.render_entity_shop(ui, ShopKind::Mentor),
+                    Tab::Authorities => self.render_entity_shop(ui, ShopKind::Authority),
+                    Tab::Upgrades => self.render_upgrades(ui),
+                    Tab::Crafting => self.render_crafting(ui),
+                    Tab::Rebirth => self.render_rebirth(ui),
+                }
             }
         });
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.state.save();
+        self.save_active_slot();
     }
 }
 
@@ -160,17 +251,47 @@ impl NeonDiasporaApp {
             );
         });
         ui.add_space(2.0);
-        ui.horizontal(|ui| {
-            stat_label(ui, "Clues", self.state.clues, theme::NEON_GREEN);
-            ui.separator();
-            stat_label(ui, "Per Sec", self.state.total_cps(), theme::NEON_BLUE);
-            ui.separator();
-            stat_label(ui, "Per Click", self.state.click_value(), theme::NEON_CYAN);
-            ui.separator();
-            stat_label(ui, "Rebirth ◆", self.state.rebirth_tokens, theme::NEON_PURPLE);
-            ui.separator();
-            stat_label(ui, "Prestige ★", self.state.prestige_tokens, theme::TEXT_WARN);
-        });
+        if self.home_screen {
+            neon_text::neon_label_glow(
+                ui,
+                "Choose a slot, then continue or start over.",
+                theme::NEON_GREEN,
+                13.0,
+                2.5,
+            );
+        } else {
+            ui.horizontal(|ui| {
+                stat_label(ui, "Clues", self.state.clues, theme::NEON_GREEN);
+                ui.separator();
+                stat_label(ui, "Per Sec", self.state.total_cps(), theme::NEON_BLUE);
+                ui.separator();
+                stat_label(ui, "Per Click", self.state.click_value(), theme::NEON_CYAN);
+                ui.separator();
+                stat_label(ui, "Rebirth ◆", self.state.rebirth_tokens, theme::NEON_PURPLE);
+                ui.separator();
+                stat_label(ui, "Prestige ★", self.state.prestige_tokens, theme::TEXT_WARN);
+                ui.separator();
+                neon_text::neon_dim(ui, "Ach. Bonus: ", 14.0);
+                neon_text::neon_label_glow(
+                    ui,
+                    format!("+{:.0}%", (self.state.achievement_multiplier() - 1.0) * 100.0),
+                    theme::TEXT_WARN,
+                    16.0,
+                    3.5,
+                );
+                if let Some(slot) = self.active_slot {
+                    ui.separator();
+                    neon_text::neon_dim(ui, "Slot: ", 14.0);
+                    neon_text::neon_label_glow(
+                        ui,
+                        format!("{}", slot + 1),
+                        theme::NEON_PINK,
+                        16.0,
+                        3.0,
+                    );
+                }
+            });
+        }
         ui.add_space(4.0);
     }
 
@@ -213,6 +334,94 @@ impl NeonDiasporaApp {
             ),
             12.0,
         );
+
+        ui.add_space(12.0);
+        if ui.button("SAVE CURRENT SLOT").clicked() {
+            self.save_active_slot();
+            self.slot_previews = Self::load_slot_previews();
+        }
+        if ui.button("HOME SCREEN").clicked() {
+            self.return_home();
+        }
+    }
+
+    fn render_home(&mut self, ui: &mut egui::Ui) {
+        ui.vertical_centered(|ui| {
+            ui.add_space(16.0);
+            neon_text::neon_heading(ui, "HOME TERMINAL", theme::NEON_CYAN, 24.0);
+            neon_text::neon_body(
+                ui,
+                "Choose one of three save slots, then continue an existing run or start over with a new playthrough.",
+                theme::TEXT_DIM,
+                14.0,
+            );
+        });
+        ui.add_space(18.0);
+
+        for slot in 0..SAVE_SLOTS {
+            let preview = self.slot_previews.get(slot).cloned().flatten();
+            ui.group(|ui| {
+                ui.horizontal(|ui| {
+                    neon_text::neon_heading(
+                        ui,
+                        format!("SAVE SLOT {}", slot + 1),
+                        theme::NEON_PINK,
+                        16.0,
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("START OVER").clicked() {
+                            self.enter_slot(slot, true);
+                        }
+                        if ui
+                            .add_enabled(preview.is_some(), egui::Button::new("CONTINUE"))
+                            .clicked()
+                        {
+                            self.enter_slot(slot, false);
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+                if let Some(preview) = preview {
+                    neon_text::neon_body(
+                        ui,
+                        format!(
+                            "Clues {} • Achievements {}/{} • Rebirths {} • Prestiges {}",
+                            theme::format_number(preview.clues),
+                            preview.achievements_unlocked.len(),
+                            achievements::ACHIEVEMENTS.len(),
+                            preview.total_rebirths,
+                            preview.total_prestiges,
+                        ),
+                        theme::TEXT_PRIMARY,
+                        13.0,
+                    );
+                    if let Some(beat) = storyline::latest_unlocked(&preview) {
+                        neon_text::neon_dim(ui, format!("Current chapter: {}", beat.title), 12.0);
+                    }
+                } else {
+                    neon_text::neon_body(
+                        ui,
+                        "Empty slot — start over to begin a fresh search.",
+                        theme::TEXT_DIM,
+                        13.0,
+                    );
+                }
+            });
+            ui.add_space(10.0);
+        }
+    }
+
+    fn render_purchase_selector(&mut self, ui: &mut egui::Ui, accent: Color32) {
+        ui.horizontal(|ui| {
+            neon_text::neon_dim(ui, "Buy amount:", 12.0);
+            for amount in PURCHASE_AMOUNTS {
+                let selected = self.purchase_amount == amount;
+                let color = if selected { accent } else { theme::NEON_DIM };
+                if neon_text::neon_selectable(ui, selected, amount.label(), color, 12.0).clicked() {
+                    self.purchase_amount = amount;
+                }
+            }
+        });
     }
 
     fn render_search(&mut self, ui: &mut egui::Ui) {
@@ -344,6 +553,16 @@ impl NeonDiasporaApp {
             "Standard milestones for your search — clicks, clues, allies, rebirth, and story progress.",
             theme::TEXT_DIM,
             13.0,
+        );
+        neon_text::neon_body(
+            ui,
+            format!(
+                "Each achievement adds +{:.0}% to clicks and passive Clue generation. Current total bonus: +{:.0}%.",
+                ACHIEVEMENT_BONUS_PER_UNLOCK * 100.0,
+                (self.state.achievement_multiplier() - 1.0) * 100.0,
+            ),
+            theme::NEON_GREEN,
+            12.0,
         );
         ui.add_space(6.0);
         progress_bar(
@@ -536,15 +755,20 @@ impl NeonDiasporaApp {
             theme::NEON_GREEN,
             12.0,
         );
+        self.render_purchase_selector(ui, theme::NEON_CYAN);
         ui.add_space(8.0);
 
+        let quantity = self.purchase_amount.quantity();
         egui::ScrollArea::vertical().show(ui, |ui| {
             for i in 0..CLICK_UPGRADES {
                 let def = &clicker::UPGRADE_DEFS[i];
                 let owned = self.state.click_upgrade_owned.get(i).copied().unwrap_or(0);
-                let cost = clicker::upgrade_cost(i, owned);
-                let can_buy = self.state.clues >= cost;
-                upgrade_row(ui, i, def, owned, cost, can_buy, || self.state.buy_click_upgrade(i));
+                let (purchase_count, total_cost) = self.state.preview_click_upgrade_purchase(i, quantity);
+                let can_buy = purchase_count > 0;
+                let purchase_text = purchase_button_text(self.purchase_amount, purchase_count, total_cost);
+                upgrade_row(ui, i, def, owned, purchase_text, can_buy, || {
+                    self.state.buy_click_upgrade_quantity(i, quantity);
+                });
             }
         });
     }
@@ -720,33 +944,51 @@ impl NeonDiasporaApp {
                 12.0,
             );
         }
+        self.render_purchase_selector(ui, currency_color);
         ui.add_space(8.0);
 
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            match kind {
-                ShopKind::Buddy => {
-                    for (i, def) in buddies::BUDDIES.iter().enumerate() {
-                        let owned = self.state.buddy_owned[i];
-                        let cost = GameState::entity_cost(def, owned);
-                        let can_buy = self.state.clues >= cost;
-                        buddy_row(ui, i, def, owned, cost, can_buy, self.buddy_sprites.get(i), || self.state.buy_buddy(i));
-                    }
+        let quantity = self.purchase_amount.quantity();
+        egui::ScrollArea::vertical().show(ui, |ui| match kind {
+            ShopKind::Buddy => {
+                for (i, def) in buddies::BUDDIES.iter().enumerate() {
+                    let owned = self.state.buddy_owned[i];
+                    let (purchase_count, total_cost) = self.state.preview_buddy_purchase(i, quantity);
+                    let can_buy = purchase_count > 0;
+                    let purchase_text = purchase_button_text(self.purchase_amount, purchase_count, total_cost);
+                    buddy_row(
+                        ui,
+                        i,
+                        def,
+                        owned,
+                        purchase_text,
+                        can_buy,
+                        self.buddy_sprites.get(i),
+                        || {
+                            self.state.buy_buddy_quantity(i, quantity);
+                        },
+                    );
                 }
-                ShopKind::Mentor => {
-                    for (i, def) in mentors::MENTORS.iter().enumerate() {
-                        let owned = self.state.mentor_owned[i];
-                        let cost = GameState::entity_cost(def, owned);
-                        let can_buy = self.state.rebirth_tokens >= cost;
-                        entity_row(ui, def, owned, cost, can_buy, || self.state.buy_mentor(i));
-                    }
+            }
+            ShopKind::Mentor => {
+                for (i, def) in mentors::MENTORS.iter().enumerate() {
+                    let owned = self.state.mentor_owned[i];
+                    let (purchase_count, total_cost) = self.state.preview_mentor_purchase(i, quantity);
+                    let can_buy = purchase_count > 0;
+                    let purchase_text = purchase_button_text(self.purchase_amount, purchase_count, total_cost);
+                    entity_row(ui, def, owned, purchase_text, can_buy, || {
+                        self.state.buy_mentor_quantity(i, quantity);
+                    });
                 }
-                ShopKind::Authority => {
-                    for (i, def) in authorities::AUTHORITIES.iter().enumerate() {
-                        let owned = self.state.authority_owned[i];
-                        let cost = GameState::entity_cost(def, owned);
-                        let can_buy = self.state.prestige_tokens >= cost;
-                        entity_row(ui, def, owned, cost, can_buy, || self.state.buy_authority(i));
-                    }
+            }
+            ShopKind::Authority => {
+                for (i, def) in authorities::AUTHORITIES.iter().enumerate() {
+                    let owned = self.state.authority_owned[i];
+                    let (purchase_count, total_cost) = self.state.preview_authority_purchase(i, quantity);
+                    let can_buy = purchase_count > 0;
+                    let purchase_text = purchase_button_text(self.purchase_amount, purchase_count, total_cost);
+                    entity_row(ui, def, owned, purchase_text, can_buy, || {
+                        self.state.buy_authority_quantity(i, quantity);
+                    });
                 }
             }
         });
@@ -804,9 +1046,9 @@ fn upgrade_row(
     index: usize,
     def: &clicker::ClickUpgradeDef,
     owned: u32,
-    cost: f64,
+    purchase_text: String,
     can_buy: bool,
-    mut buy: impl FnMut() -> bool,
+    mut buy: impl FnMut(),
 ) {
     ui.group(|ui| {
         ui.horizontal(|ui| {
@@ -848,8 +1090,7 @@ fn upgrade_row(
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let btn = egui::Button::new(
-                    RichText::new(theme::format_number(cost))
-                        .color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
+                    RichText::new(purchase_text).color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
                 );
                 if ui.add_enabled(can_buy, btn).clicked() {
                     buy();
@@ -864,10 +1105,10 @@ fn buddy_row(
     index: usize,
     def: &crate::data::EntityDef,
     owned: u32,
-    cost: f64,
+    purchase_text: String,
     can_buy: bool,
     sprite: Option<&egui::TextureHandle>,
-    mut buy: impl FnMut() -> bool,
+    mut buy: impl FnMut(),
 ) {
     ui.group(|ui| {
         ui.horizontal(|ui| {
@@ -905,8 +1146,7 @@ fn buddy_row(
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let btn = egui::Button::new(
-                    RichText::new(theme::format_number(cost))
-                        .color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
+                    RichText::new(purchase_text).color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
                 );
                 if ui.add_enabled(can_buy, btn).clicked() {
                     buy();
@@ -920,9 +1160,9 @@ fn entity_row(
     ui: &mut egui::Ui,
     def: &crate::data::EntityDef,
     owned: u32,
-    cost: f64,
+    purchase_text: String,
     can_buy: bool,
-    mut buy: impl FnMut() -> bool,
+    mut buy: impl FnMut(),
 ) {
     ui.group(|ui| {
         ui.horizontal(|ui| {
@@ -942,8 +1182,7 @@ fn entity_row(
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let btn = egui::Button::new(
-                    RichText::new(theme::format_number(cost))
-                        .color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
+                    RichText::new(purchase_text).color(if can_buy { theme::NEON_GREEN } else { theme::TEXT_DIM }),
                 );
                 if ui.add_enabled(can_buy, btn).clicked() {
                     buy();
@@ -951,4 +1190,18 @@ fn entity_row(
             });
         });
     });
+}
+
+fn purchase_button_text(amount: PurchaseAmount, purchased: u32, total_cost: f64) -> String {
+    if purchased == 0 {
+        return match amount {
+            PurchaseAmount::Max => "MAX".to_string(),
+            _ => format!("×{}", amount.label()),
+        };
+    }
+
+    match amount {
+        PurchaseAmount::Max => format!("MAX ×{} ({})", purchased, theme::format_number(total_cost)),
+        _ => format!("×{} ({})", purchased, theme::format_number(total_cost)),
+    }
 }

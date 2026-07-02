@@ -181,7 +181,7 @@ pub fn draw_buddy_avatar(
     sprite: Option<&egui::TextureHandle>,
 ) {
     let center = rect.center();
-    let r = AVATAR_SIZE * 0.42;
+    let r = rect.width().min(rect.height()) * 0.42;
     let (_, _, ring) = palette(index);
 
     if owned > 0 {

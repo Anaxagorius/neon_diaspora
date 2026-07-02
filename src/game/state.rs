@@ -139,10 +139,6 @@ impl GameState {
         state
     }
 
-    fn save_path() -> PathBuf {
-        Self::save_path_for_slot(0)
-    }
-
     pub fn save_path_for_slot(slot: usize) -> PathBuf {
         let slot = slot % SAVE_SLOTS;
         dirs_fallback().join(format!(
@@ -169,10 +165,6 @@ impl GameState {
         None
     }
 
-    pub fn load() -> Self {
-        Self::load_slot(0)
-    }
-
     pub fn load_slot(slot: usize) -> Self {
         Self::load_from_path(Self::save_path_for_slot(slot)).unwrap_or_else(Self::new)
     }
@@ -183,10 +175,6 @@ impl GameState {
             return None;
         }
         Self::load_from_path(path)
-    }
-
-    pub fn save(&self) {
-        self.save_to_slot(0);
     }
 
     pub fn save_to_slot(&self, slot: usize) {
@@ -455,10 +443,6 @@ impl GameState {
         self.message_timer = 0.0;
     }
 
-    pub fn buy_click_upgrade(&mut self, index: usize) -> bool {
-        self.buy_click_upgrade_quantity(index, Some(1)) > 0
-    }
-
     pub fn preview_click_upgrade_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= CLICK_UPGRADES {
             return (0, 0.0);
@@ -481,10 +465,6 @@ impl GameState {
         self.click_upgrade_owned[index] += purchased;
         self.check_progress();
         purchased
-    }
-
-    pub fn buy_buddy(&mut self, index: usize) -> bool {
-        self.buy_buddy_quantity(index, Some(1)) > 0
     }
 
     pub fn preview_buddy_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
@@ -512,10 +492,6 @@ impl GameState {
         purchased
     }
 
-    pub fn buy_mentor(&mut self, index: usize) -> bool {
-        self.buy_mentor_quantity(index, Some(1)) > 0
-    }
-
     pub fn preview_mentor_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= mentors::MENTORS.len() {
             return (0, 0.0);
@@ -539,10 +515,6 @@ impl GameState {
         self.mentor_owned[index] += purchased;
         self.check_progress();
         purchased
-    }
-
-    pub fn buy_authority(&mut self, index: usize) -> bool {
-        self.buy_authority_quantity(index, Some(1)) > 0
     }
 
     pub fn preview_authority_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {

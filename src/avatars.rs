@@ -16,7 +16,7 @@ static BUDDY_IMAGE_BYTES: &[Option<&[u8]>] = &[
     Some(include_bytes!("../assets/buddies/rain_slick_ronin.jpg")),  // 1  Rain-Slick Ronin
     Some(include_bytes!("../assets/buddies/packet_rat.jpg")),        // 2  Packet Rat
     Some(include_bytes!("../assets/buddies/chrome_nomad.jpg")),      // 3  Chrome Nomad
-    Some(include_bytes!("../assets/buddies/statuc_whisper.jpg")),    // 4  Static Whisper
+    Some(include_bytes!("../assets/buddies/static_whisper.jpg")),    // 4  Static Whisper
     Some(include_bytes!("../assets/buddies/grid_rat.jpg")),          // 5  Grid Rat
     Some(include_bytes!("../assets/buddies/holo_scribe.jpg")),       // 6  Holo Scribe
     Some(include_bytes!("../assets/buddies/synth_alley_cat.jpg")),   // 7  Synth Alley Cat
@@ -245,8 +245,7 @@ fn add_circular_image(
     });
 
     for i in 0..segments {
-        let angle = i as f32 * std::f32::consts::TAU / segments as f32
-            - std::f32::consts::FRAC_PI_2; // start at top
+        let angle = i as f32 * std::f32::consts::TAU / segments as f32 - std::f32::consts::FRAC_PI_2;
         let cos = angle.cos();
         let sin = angle.sin();
         mesh.vertices.push(egui::epaint::Vertex {

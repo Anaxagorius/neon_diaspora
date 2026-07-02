@@ -17,6 +17,8 @@ const PRESTIGE_THRESHOLD: f64 = 25.0;
 const ENCOURAGEMENT_INTERVAL_MIN: f64 = 8.0;
 const ENCOURAGEMENT_INTERVAL_MAX: f64 = 25.0;
 const SAVE_FILE: &str = "neon_diaspora_save.json";
+pub const SAVE_SLOTS: usize = 3;
+pub const ACHIEVEMENT_BONUS_PER_UNLOCK: f64 = 0.02;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GameState {
@@ -138,11 +140,19 @@ impl GameState {
     }
 
     fn save_path() -> PathBuf {
-        dirs_fallback().join(SAVE_FILE)
+        Self::save_path_for_slot(0)
     }
 
-    pub fn load() -> Self {
-        let path = Self::save_path();
+    pub fn save_path_for_slot(slot: usize) -> PathBuf {
+        let slot = slot % SAVE_SLOTS;
+        dirs_fallback().join(format!(
+            "{}_slot_{}.json",
+            SAVE_FILE.trim_end_matches(".json"),
+            slot + 1
+        ))
+    }
+
+    fn load_from_path(path: PathBuf) -> Option<Self> {
         if let Ok(data) = fs::read_to_string(&path) {
             if let Ok(mut state) = serde_json::from_str::<GameState>(&data) {
                 state.last_tick = Instant::now();
@@ -153,14 +163,34 @@ impl GameState {
                 achievements::backfill_unlocks(&mut state);
                 state.migrate_click_upgrades();
                 state.migrate_rebirth_cycle();
-                return state;
+                return Some(state);
             }
         }
-        Self::new()
+        None
+    }
+
+    pub fn load() -> Self {
+        Self::load_slot(0)
+    }
+
+    pub fn load_slot(slot: usize) -> Self {
+        Self::load_from_path(Self::save_path_for_slot(slot)).unwrap_or_else(Self::new)
+    }
+
+    pub fn load_slot_preview(slot: usize) -> Option<Self> {
+        let path = Self::save_path_for_slot(slot);
+        if !path.exists() {
+            return None;
+        }
+        Self::load_from_path(path)
     }
 
     pub fn save(&self) {
-        let path = Self::save_path();
+        self.save_to_slot(0);
+    }
+
+    pub fn save_to_slot(&self, slot: usize) {
+        let path = Self::save_path_for_slot(slot);
         if let Ok(json) = serde_json::to_string_pretty(self) {
             let _ = fs::write(path, json);
         }
@@ -191,8 +221,15 @@ impl GameState {
         mult
     }
 
+    pub fn achievement_multiplier(&self) -> f64 {
+        1.0 + self.achievements_unlocked.len() as f64 * ACHIEVEMENT_BONUS_PER_UNLOCK
+    }
+
     pub fn click_value(&self) -> f64 {
-        let mult = self.rebirth_multiplier() * self.prestige_multiplier() * self.craft_multiplier();
+        let mult = self.rebirth_multiplier()
+            * self.prestige_multiplier()
+            * self.craft_multiplier()
+            * self.achievement_multiplier();
         let bonus: f64 = (0..CLICK_UPGRADES)
             .map(|i| {
                 let owned = self.click_upgrade_owned.get(i).copied().unwrap_or(0);
@@ -236,8 +273,30 @@ impl GameState {
         def.base_cost * 1.22_f64.powi(owned as i32)
     }
 
+    fn preview_purchase(
+        owned: u32,
+        currency: f64,
+        quantity: Option<u32>,
+        mut cost_fn: impl FnMut(u32) -> f64,
+    ) -> (u32, f64) {
+        let limit = quantity.unwrap_or(u32::MAX);
+        let mut purchased = 0;
+        let mut total_cost = 0.0;
+
+        while purchased < limit {
+            let cost = cost_fn(owned + purchased);
+            if total_cost + cost > currency + f64::EPSILON {
+                break;
+            }
+            total_cost += cost;
+            purchased += 1;
+        }
+
+        (purchased, total_cost)
+    }
+
     pub fn buddy_cps(&self) -> f64 {
-        let mult = self.rebirth_multiplier() * self.craft_multiplier();
+        let mult = self.rebirth_multiplier() * self.craft_multiplier() * self.achievement_multiplier();
         buddies::BUDDIES
             .iter()
             .zip(self.buddy_owned.iter())
@@ -250,7 +309,10 @@ impl GameState {
     }
 
     pub fn mentor_cps(&self) -> f64 {
-        let mult = self.rebirth_multiplier() * self.prestige_multiplier() * 0.5;
+        let mult = self.rebirth_multiplier()
+            * self.prestige_multiplier()
+            * self.achievement_multiplier()
+            * 0.5;
         mentors::MENTORS
             .iter()
             .zip(self.mentor_owned.iter())
@@ -259,7 +321,7 @@ impl GameState {
     }
 
     pub fn authority_cps(&self) -> f64 {
-        let mult = self.prestige_multiplier() * self.craft_multiplier();
+        let mult = self.prestige_multiplier() * self.craft_multiplier() * self.achievement_multiplier();
         authorities::AUTHORITIES
             .iter()
             .zip(self.authority_owned.iter())
@@ -394,66 +456,118 @@ impl GameState {
     }
 
     pub fn buy_click_upgrade(&mut self, index: usize) -> bool {
+        self.buy_click_upgrade_quantity(index, Some(1)) > 0
+    }
+
+    pub fn preview_click_upgrade_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= CLICK_UPGRADES {
-            return false;
+            return (0, 0.0);
         }
         let owned = self.click_upgrade_owned[index];
-        let cost = clicker::upgrade_cost(index, owned);
-        if self.clues < cost {
-            return false;
+        Self::preview_purchase(owned, self.clues, quantity, |current_owned| {
+            clicker::upgrade_cost(index, current_owned)
+        })
+    }
+
+    pub fn buy_click_upgrade_quantity(&mut self, index: usize, quantity: Option<u32>) -> u32 {
+        if index >= CLICK_UPGRADES {
+            return 0;
         }
-        self.clues -= cost;
-        self.click_upgrade_owned[index] += 1;
+        let (purchased, total_cost) = self.preview_click_upgrade_purchase(index, quantity);
+        if purchased == 0 {
+            return 0;
+        }
+        self.clues -= total_cost;
+        self.click_upgrade_owned[index] += purchased;
         self.check_progress();
-        true
+        purchased
     }
 
     pub fn buy_buddy(&mut self, index: usize) -> bool {
+        self.buy_buddy_quantity(index, Some(1)) > 0
+    }
+
+    pub fn preview_buddy_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= buddies::BUDDIES.len() {
-            return false;
+            return (0, 0.0);
         }
         let def = &buddies::BUDDIES[index];
         let owned = self.buddy_owned[index];
-        let cost = Self::entity_cost(def, owned);
-        if self.clues < cost {
-            return false;
+        Self::preview_purchase(owned, self.clues, quantity, |current_owned| {
+            Self::entity_cost(def, current_owned)
+        })
+    }
+
+    pub fn buy_buddy_quantity(&mut self, index: usize, quantity: Option<u32>) -> u32 {
+        if index >= buddies::BUDDIES.len() {
+            return 0;
         }
-        self.clues -= cost;
-        self.buddy_owned[index] += 1;
+        let (purchased, total_cost) = self.preview_buddy_purchase(index, quantity);
+        if purchased == 0 {
+            return 0;
+        }
+        self.clues -= total_cost;
+        self.buddy_owned[index] += purchased;
         self.check_progress();
-        true
+        purchased
     }
 
     pub fn buy_mentor(&mut self, index: usize) -> bool {
+        self.buy_mentor_quantity(index, Some(1)) > 0
+    }
+
+    pub fn preview_mentor_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= mentors::MENTORS.len() {
-            return false;
+            return (0, 0.0);
         }
         let def = &mentors::MENTORS[index];
         let owned = self.mentor_owned[index];
-        let cost = Self::entity_cost(def, owned);
-        if self.rebirth_tokens < cost {
-            return false;
+        Self::preview_purchase(owned, self.rebirth_tokens, quantity, |current_owned| {
+            Self::entity_cost(def, current_owned)
+        })
+    }
+
+    pub fn buy_mentor_quantity(&mut self, index: usize, quantity: Option<u32>) -> u32 {
+        if index >= mentors::MENTORS.len() {
+            return 0;
         }
-        self.rebirth_tokens -= cost;
-        self.mentor_owned[index] += 1;
+        let (purchased, total_cost) = self.preview_mentor_purchase(index, quantity);
+        if purchased == 0 {
+            return 0;
+        }
+        self.rebirth_tokens -= total_cost;
+        self.mentor_owned[index] += purchased;
         self.check_progress();
-        true
+        purchased
     }
 
     pub fn buy_authority(&mut self, index: usize) -> bool {
+        self.buy_authority_quantity(index, Some(1)) > 0
+    }
+
+    pub fn preview_authority_purchase(&self, index: usize, quantity: Option<u32>) -> (u32, f64) {
         if index >= authorities::AUTHORITIES.len() {
-            return false;
+            return (0, 0.0);
         }
         let def = &authorities::AUTHORITIES[index];
         let owned = self.authority_owned[index];
-        let cost = Self::entity_cost(def, owned);
-        if self.prestige_tokens < cost {
-            return false;
+        Self::preview_purchase(owned, self.prestige_tokens, quantity, |current_owned| {
+            Self::entity_cost(def, current_owned)
+        })
+    }
+
+    pub fn buy_authority_quantity(&mut self, index: usize, quantity: Option<u32>) -> u32 {
+        if index >= authorities::AUTHORITIES.len() {
+            return 0;
         }
-        self.prestige_tokens -= cost;
-        self.authority_owned[index] += 1;
+        let (purchased, total_cost) = self.preview_authority_purchase(index, quantity);
+        if purchased == 0 {
+            return 0;
+        }
+        self.prestige_tokens -= total_cost;
+        self.authority_owned[index] += purchased;
         self.check_progress();
-        true
+        purchased
     }
 
     pub fn craft_item(&mut self, index: usize) -> bool {
@@ -562,4 +676,40 @@ fn dirs_fallback() -> PathBuf {
         return path;
     }
     PathBuf::from(".")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn achievement_bonus_scales_per_unlock() {
+        let mut state = GameState::new();
+        assert_eq!(state.achievement_multiplier(), 1.0);
+        state.achievements_unlocked.extend([1, 2, 3]);
+        assert!((state.achievement_multiplier() - 1.06).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn preview_purchase_limits_to_affordable_count() {
+        let mut state = GameState::new();
+        state.clues = 100.0;
+
+        let (count, total_cost) = state.preview_buddy_purchase(0, Some(10));
+
+        assert!(count > 0);
+        assert!(count < 10);
+        assert!(total_cost <= state.clues);
+    }
+
+    #[test]
+    fn preview_purchase_supports_max_mode() {
+        let mut state = GameState::new();
+        state.clues = 10_000.0;
+
+        let limited = state.preview_click_upgrade_purchase(0, Some(10)).0;
+        let maxed = state.preview_click_upgrade_purchase(0, None).0;
+
+        assert!(maxed >= limited);
+    }
 }

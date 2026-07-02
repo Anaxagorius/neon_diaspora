@@ -67,6 +67,11 @@ const PURCHASE_AMOUNTS: [PurchaseAmount; 6] = [
     PurchaseAmount::Max,
 ];
 
+const MAIN_CHARACTER_SPRITE_ID: usize = 11;
+const MAIN_CHARACTER_AVATAR_OWNED: u32 = 0;
+const MAIN_CHARACTER_AVATAR_SCALE: f32 = 1.3;
+const SEARCH_LABEL_OFFSET_RATIO: f32 = 0.82;
+
 pub struct NeonDiasporaApp {
     state: GameState,
     tab: Tab,
@@ -463,19 +468,22 @@ impl NeonDiasporaApp {
             painter.circle_filled(center, outer_r, theme::BG_PANEL_ALT);
             painter.circle_stroke(center, outer_r, Stroke::new(3.0, theme::NEON_GREEN));
 
-            let avatar_rect = Rect::from_center_size(center, Vec2::splat(outer_r * 1.3));
+            let avatar_rect = Rect::from_center_size(
+                center,
+                Vec2::splat(outer_r * MAIN_CHARACTER_AVATAR_SCALE),
+            );
             avatars::draw_buddy_avatar(
                 painter,
                 avatar_rect,
-                11,
+                MAIN_CHARACTER_SPRITE_ID,
                 "Main Character",
-                0,
-                self.buddy_sprites.get(11),
+                MAIN_CHARACTER_AVATAR_OWNED,
+                self.buddy_sprites.get(MAIN_CHARACTER_SPRITE_ID),
             );
 
             draw_neon_text(
                 painter,
-                center + Vec2::new(0.0, outer_r * 0.82),
+                center + Vec2::new(0.0, outer_r * SEARCH_LABEL_OFFSET_RATIO),
                 egui::Align2::CENTER_CENTER,
                 "SEARCH",
                 egui::FontId::proportional(15.0),

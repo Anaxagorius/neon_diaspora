@@ -1,4 +1,4 @@
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{self, Align2, Color32, FontId, LayerId, Order, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 
 use crate::neon_text;
 use crate::theme;
@@ -23,6 +23,7 @@ static BUDDY_IMAGE_BYTES: &[Option<&[u8]>] = &[
     Some(include_bytes!("../assets/buddies/void_courier.jpg")),      // 8  Void Courier
     Some(include_bytes!("../assets/buddies/neuro_drifter.jpg")),     // 9  Neuro Drifter
     Some(include_bytes!("../assets/buddies/rust_prophet.jpg")),      // 10 Rust Prophet
+    Some(include_bytes!("../assets/buddies/lost_boy.jpg")),          // 11 Pulse Jack (lost_boy)
 ];
 
 /// Cache of loaded `TextureHandle`s — one per buddy slot.
@@ -147,6 +148,8 @@ fn style_for(index: usize) -> AvatarStyle {
 // Public drawing helpers
 // ---------------------------------------------------------------------------
 
+const AVATAR_HOVER_SCALE: f32 = 1.75;
+
 pub fn buddy_avatar(
     ui: &mut Ui,
     index: usize,
@@ -157,6 +160,15 @@ pub fn buddy_avatar(
     let size = Vec2::splat(AVATAR_SIZE);
     let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
     draw_buddy_avatar(ui.painter(), rect, index, name, owned, sprite);
+
+    if response.hovered() {
+        let expanded = AVATAR_SIZE * AVATAR_HOVER_SCALE;
+        let expand_rect = Rect::from_center_size(rect.center(), Vec2::splat(expanded));
+        let layer = LayerId::new(Order::Tooltip, egui::Id::new("avatar_hover").with(index));
+        let hover_painter = ui.ctx().layer_painter(layer);
+        draw_buddy_avatar(&hover_painter, expand_rect, index, name, owned, sprite);
+    }
+
     response
 }
 

@@ -23,7 +23,7 @@ static BUDDY_IMAGE_BYTES: &[Option<&[u8]>] = &[
     Some(include_bytes!("../assets/buddies/void_courier.jpg")),      // 8  Void Courier
     Some(include_bytes!("../assets/buddies/neuro_drifter.jpg")),     // 9  Neuro Drifter
     Some(include_bytes!("../assets/buddies/rust_prophet.jpg")),      // 10 Rust Prophet
-    Some(include_bytes!("../assets/buddies/lost_boy.jpg")),          // 11 Pulse Jack
+    Some(include_bytes!("../assets/buddies/lost_boy.jpg")),          // 11 Pulse Jack (lost_boy)
 ];
 
 /// Cache of loaded `TextureHandle`s — one per buddy slot.

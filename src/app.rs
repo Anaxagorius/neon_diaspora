@@ -67,6 +67,11 @@ const PURCHASE_AMOUNTS: [PurchaseAmount; 6] = [
     PurchaseAmount::Max,
 ];
 
+const MAIN_CHARACTER_SPRITE_ID: usize = 11;
+const MAIN_CHARACTER_AVATAR_OWNED: u32 = 0;
+const MAIN_CHARACTER_AVATAR_SCALE: f32 = 1.3;
+const SEARCH_LABEL_OFFSET_RATIO: f32 = 0.82;
+
 pub struct NeonDiasporaApp {
     state: GameState,
     tab: Tab,
@@ -455,7 +460,6 @@ impl NeonDiasporaApp {
             let painter = ui.painter();
             let center = rect.center();
             let pulse = self.state.click_pulse;
-            let anim = self.state.click_anim;
 
             let outer_r = size * 0.48;
             let glow_r = outer_r + 8.0 + pulse * 12.0;
@@ -464,32 +468,27 @@ impl NeonDiasporaApp {
             painter.circle_filled(center, outer_r, theme::BG_PANEL_ALT);
             painter.circle_stroke(center, outer_r, Stroke::new(3.0, theme::NEON_GREEN));
 
-            let inner_r = outer_r * 0.65;
-            let inner_color = Color32::from_rgb(
-                (0.0 + anim * 60.0) as u8,
-                (180.0 + anim * 75.0) as u8,
-                (120.0 + anim * 40.0) as u8,
+            let avatar_rect = Rect::from_center_size(
+                center,
+                Vec2::splat(outer_r * MAIN_CHARACTER_AVATAR_SCALE),
             );
-            painter.circle_filled(center, inner_r, inner_color);
-            painter.circle_stroke(center, inner_r, Stroke::new(2.0, theme::NEON_CYAN));
+            avatars::draw_buddy_avatar(
+                painter,
+                avatar_rect,
+                MAIN_CHARACTER_SPRITE_ID,
+                "Main Character",
+                MAIN_CHARACTER_AVATAR_OWNED,
+                self.buddy_sprites.get(MAIN_CHARACTER_SPRITE_ID),
+            );
 
             draw_neon_text(
                 painter,
-                center + Vec2::new(0.0, -12.0),
+                center + Vec2::new(0.0, outer_r * SEARCH_LABEL_OFFSET_RATIO),
                 egui::Align2::CENTER_CENTER,
                 "SEARCH",
-                egui::FontId::proportional(20.0),
+                egui::FontId::proportional(15.0),
                 theme::NEON_CYAN,
-                3.5 + pulse * 2.0,
-            );
-            draw_neon_text(
-                painter,
-                center + Vec2::new(0.0, 12.0),
-                egui::Align2::CENTER_CENTER,
-                "for Clues",
-                egui::FontId::proportional(14.0),
-                theme::NEON_GREEN,
-                2.5,
+                2.5 + pulse,
             );
 
             if response.hovered() {

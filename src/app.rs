@@ -28,6 +28,7 @@ pub struct NeonDiasporaApp {
     state: GameState,
     tab: Tab,
     auto_save_timer: f64,
+    buddy_sprites: avatars::BuddySprites,
 }
 
 impl NeonDiasporaApp {
@@ -36,6 +37,7 @@ impl NeonDiasporaApp {
             state: GameState::load(),
             tab: Tab::Search,
             auto_save_timer: 0.0,
+            buddy_sprites: avatars::BuddySprites::new(),
         }
     }
 
@@ -69,6 +71,7 @@ impl NeonDiasporaApp {
 impl eframe::App for NeonDiasporaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         Self::setup_theme(ctx);
+        self.buddy_sprites.ensure_loaded(ctx);
 
         let dt = ctx.input(|i| i.unstable_dt) as f64;
         self.state.tick(dt);
@@ -502,7 +505,7 @@ impl NeonDiasporaApp {
             if msg.kind == MsgKind::Buddy {
                 if let Some(i) = buddies::BUDDIES.iter().position(|b| b.name == msg.speaker) {
                     let owned = self.state.buddy_owned.get(i).copied().unwrap_or(1);
-                    avatars::buddy_avatar(ui, i, &msg.speaker, owned.max(1));
+                    avatars::buddy_avatar(ui, i, &msg.speaker, owned.max(1), self.buddy_sprites.get(i));
                     ui.add_space(6.0);
                 }
             }
@@ -726,7 +729,7 @@ impl NeonDiasporaApp {
                         let owned = self.state.buddy_owned[i];
                         let cost = GameState::entity_cost(def, owned);
                         let can_buy = self.state.clues >= cost;
-                        buddy_row(ui, i, def, owned, cost, can_buy, || self.state.buy_buddy(i));
+                        buddy_row(ui, i, def, owned, cost, can_buy, self.buddy_sprites.get(i), || self.state.buy_buddy(i));
                     }
                 }
                 ShopKind::Mentor => {
@@ -863,11 +866,12 @@ fn buddy_row(
     owned: u32,
     cost: f64,
     can_buy: bool,
+    sprite: Option<&egui::TextureHandle>,
     mut buy: impl FnMut() -> bool,
 ) {
     ui.group(|ui| {
         ui.horizontal(|ui| {
-            avatars::buddy_avatar(ui, index, def.name, owned);
+            avatars::buddy_avatar(ui, index, def.name, owned, sprite);
             ui.add_space(4.0);
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {

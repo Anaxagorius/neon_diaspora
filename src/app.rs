@@ -336,7 +336,7 @@ impl NeonDiasporaApp {
         );
 
         ui.add_space(12.0);
-        if ui.button("SAVE SLOT").clicked() {
+        if ui.button("SAVE CURRENT SLOT").clicked() {
             self.save_active_slot();
             self.slot_previews = Self::load_slot_previews();
         }

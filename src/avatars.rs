@@ -23,7 +23,25 @@ static BUDDY_IMAGE_BYTES: &[Option<&[u8]>] = &[
     Some(include_bytes!("../assets/buddies/void_courier.jpg")),      // 8  Void Courier
     Some(include_bytes!("../assets/buddies/neuro_drifter.jpg")),     // 9  Neuro Drifter
     Some(include_bytes!("../assets/buddies/rust_prophet.jpg")),      // 10 Rust Prophet
-    Some(include_bytes!("../assets/buddies/lost_boy.jpg")),          // 11 Pulse Jack (lost_boy)
+    Some(include_bytes!("../assets/buddies/pulse_jack.jpg")),        // 11 Pulse Jack
+    Some(include_bytes!("../assets/buddies/cipher_bloom.jpg")),      // 12 Cipher Bloom
+    None,                                                             // 13 Drip Saint
+    Some(include_bytes!("../assets/buddies/wire_widow.jpg")),        // 14 Wire Widow
+    Some(include_bytes!("../assets/buddies/glitch_monk.jpg")),       // 15 Glitch Monk
+    Some(include_bytes!("../assets/buddies/blackout_bard.jpg")),     // 16 Blackout Bard
+    None,                                                             // 17 Shard Diver
+    None,                                                             // 18 Echo Broker
+    Some(include_bytes!("../assets/buddies/neon_mender.jpg")),       // 19 Neon Mender
+    Some(include_bytes!("../assets/buddies/fog_runner.jpg")),        // 20 Fog Runner
+    Some(include_bytes!("../assets/buddies/data_vagrant.jpg")),      // 21 Data Vagrant
+    Some(include_bytes!("../assets/buddies/circuit_poet.jpg")),      // 22 Circuit Poet
+    Some(include_bytes!("../assets/buddies/voltage_nun.jpg")),       // 23 Voltage Nun
+    Some(include_bytes!("../assets/buddies/proxy_child.jpg")),       // 24 Proxy Child
+    None,                                                             // 25 Signal Thief
+    Some(include_bytes!("../assets/buddies/Carbon_angel.jpg")),      // 26 Carbon Angel
+    Some(include_bytes!("../assets/buddies/null_priest.jpg")),       // 27 Null Priest
+    None,                                                             // 28 Razor Cartographer
+    Some(include_bytes!("../assets/buddies/bit_hustler.jpg")),       // 29 Bit Hustler
 ];
 
 /// Cache of loaded `TextureHandle`s — one per buddy slot.

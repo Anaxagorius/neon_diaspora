@@ -38,7 +38,7 @@ static BUDDY_IMAGE_BYTES: &[Option<&[u8]>] = &[
     Some(include_bytes!("../assets/buddies/voltage_nun.jpg")),       // 23 Voltage Nun
     Some(include_bytes!("../assets/buddies/proxy_child.jpg")),       // 24 Proxy Child
     None,                                                             // 25 Signal Thief
-    Some(include_bytes!("../assets/buddies/Carbon_angel.jpg")),      // 26 Carbon Angel
+    Some(include_bytes!("../assets/buddies/carbon_angel.jpg")),      // 26 Carbon Angel
     Some(include_bytes!("../assets/buddies/null_priest.jpg")),       // 27 Null Priest
     None,                                                             // 28 Razor Cartographer
     Some(include_bytes!("../assets/buddies/bit_hustler.jpg")),       // 29 Bit Hustler

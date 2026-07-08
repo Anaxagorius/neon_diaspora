@@ -27,7 +27,11 @@ pub struct GameState {
     #[serde(default)]
     pub rebirth_cycle_clues: f64,
     pub rebirth_tokens: f64,
+    #[serde(default)]
+    pub total_rebirth_tokens_earned: f64,
     pub prestige_tokens: f64,
+    #[serde(default)]
+    pub total_prestige_tokens_earned: f64,
     pub total_rebirths: u32,
     pub total_prestiges: u32,
 
@@ -106,7 +110,9 @@ impl GameState {
             lifetime_clues: 0.0,
             rebirth_cycle_clues: 0.0,
             rebirth_tokens: 0.0,
+            total_rebirth_tokens_earned: 0.0,
             prestige_tokens: 0.0,
+            total_prestige_tokens_earned: 0.0,
             total_rebirths: 0,
             total_prestiges: 0,
             click_upgrade_owned: vec![0; CLICK_UPGRADES],
@@ -159,6 +165,7 @@ impl GameState {
                 achievements::backfill_unlocks(&mut state);
                 state.migrate_click_upgrades();
                 state.migrate_rebirth_cycle();
+                state.migrate_token_totals();
                 return Some(state);
             }
         }
@@ -192,11 +199,11 @@ impl GameState {
     }
 
     pub fn rebirth_multiplier(&self) -> f64 {
-        1.0 + self.rebirth_tokens * 0.08 + self.total_rebirths as f64 * 0.05
+        1.0 + self.total_rebirth_tokens_earned * 0.08 + self.total_rebirths as f64 * 0.05
     }
 
     pub fn prestige_multiplier(&self) -> f64 {
-        1.0 + self.prestige_tokens * 0.12 + self.total_prestiges as f64 * 0.08
+        1.0 + self.total_prestige_tokens_earned * 0.12 + self.total_prestiges as f64 * 0.08
     }
 
     pub fn craft_multiplier(&self) -> f64 {
@@ -243,6 +250,20 @@ impl GameState {
         // Legacy saves tracked rebirth progress on lifetime_clues (never reset on rebirth).
         if self.rebirth_cycle_clues == 0.0 && self.lifetime_clues > 0.0 && self.total_rebirths == 0 {
             self.rebirth_cycle_clues = self.lifetime_clues;
+        }
+    }
+
+    fn migrate_token_totals(&mut self) {
+        // Legacy saves have no total_*_tokens_earned fields (they default to 0.0).
+        // Seed them from the current spendable balance so the multiplier at least
+        // reflects unspent tokens. Tokens already spent before this migration cannot
+        // be recovered; players who had spent all tokens retain a 0 earned total,
+        // which is the same effective multiplier they had with the old code.
+        if self.total_rebirth_tokens_earned == 0.0 && self.rebirth_tokens > 0.0 {
+            self.total_rebirth_tokens_earned = self.rebirth_tokens;
+        }
+        if self.total_prestige_tokens_earned == 0.0 && self.prestige_tokens > 0.0 {
+            self.total_prestige_tokens_earned = self.prestige_tokens;
         }
     }
 
@@ -583,11 +604,13 @@ impl GameState {
         }
         let tokens = self.rebirth_preview_tokens();
         self.rebirth_tokens += tokens;
+        self.total_rebirth_tokens_earned += tokens;
         self.total_rebirths += 1;
 
         self.clues = 0.0;
         self.rebirth_cycle_clues = 0.0;
         self.buddy_owned = vec![0; buddies::BUDDIES.len()];
+        self.click_upgrade_owned = vec![0; CLICK_UPGRADES];
         self.scrap = self.scrap * 0.1;
         self.data_chips = self.data_chips * 0.1;
         self.neural_filament = self.neural_filament * 0.1;
@@ -614,12 +637,17 @@ impl GameState {
         }
         let tokens = self.prestige_preview_tokens();
         self.prestige_tokens += tokens;
+        self.total_prestige_tokens_earned += tokens;
         self.total_prestiges += 1;
 
         self.clues = 0.0;
         self.lifetime_clues = 0.0;
         self.rebirth_cycle_clues = 0.0;
         self.rebirth_tokens = 0.0;
+        // Reset the rebirth token multiplier: prestige sacrifices all rebirth token
+        // progress (both the spendable balance and the token-based component of
+        // rebirth_multiplier). total_rebirths and non-token rebirth state are preserved.
+        self.total_rebirth_tokens_earned = 0.0;
         self.buddy_owned = vec![0; buddies::BUDDIES.len()];
         self.mentor_owned = vec![0; mentors::MENTORS.len()];
         for owned in &mut self.click_upgrade_owned {

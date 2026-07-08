@@ -642,6 +642,8 @@ impl GameState {
         self.lifetime_clues = 0.0;
         self.rebirth_cycle_clues = 0.0;
         self.rebirth_tokens = 0.0;
+        // Reset earned total as well: prestige intentionally sacrifices all rebirth progress,
+        // including the rebirth-token component of the rebirth_multiplier.
         self.total_rebirth_tokens_earned = 0.0;
         self.buddy_owned = vec![0; buddies::BUDDIES.len()];
         self.mentor_owned = vec![0; mentors::MENTORS.len()];

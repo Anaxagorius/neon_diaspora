@@ -255,8 +255,10 @@ impl GameState {
 
     fn migrate_token_totals(&mut self) {
         // Legacy saves have no total_*_tokens_earned fields (they default to 0.0).
-        // Set them to the current balance as a best-effort minimum so the multiplier
-        // doesn't drop below what the player already has.
+        // Seed them from the current spendable balance so the multiplier at least
+        // reflects unspent tokens. Tokens already spent before this migration cannot
+        // be recovered; players who had spent all tokens retain a 0 earned total,
+        // which is the same effective multiplier they had with the old code.
         if self.total_rebirth_tokens_earned == 0.0 && self.rebirth_tokens > 0.0 {
             self.total_rebirth_tokens_earned = self.rebirth_tokens;
         }
@@ -642,8 +644,9 @@ impl GameState {
         self.lifetime_clues = 0.0;
         self.rebirth_cycle_clues = 0.0;
         self.rebirth_tokens = 0.0;
-        // Reset earned total as well: prestige intentionally sacrifices all rebirth progress,
-        // including the rebirth-token component of the rebirth_multiplier.
+        // Reset the rebirth token multiplier: prestige sacrifices all rebirth token
+        // progress (both the spendable balance and the token-based component of
+        // rebirth_multiplier). total_rebirths and non-token rebirth state are preserved.
         self.total_rebirth_tokens_earned = 0.0;
         self.buddy_owned = vec![0; buddies::BUDDIES.len()];
         self.mentor_owned = vec![0; mentors::MENTORS.len()];
